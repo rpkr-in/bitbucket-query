@@ -506,7 +506,7 @@ function suggestList(fragments) {
     const suggestions = [];
     if (workspaceName === '') {
         suggestions.push(
-            createSuggestion("LIST", "List the repos in the ${bitbucketQueryData.active} workspace"));
+            createSuggestion("LIST", `List the repos in the ${bitbucketQueryData.active} workspace`));
     }
     Object.keys(bitbucketQueryData.workspaces)
         .filter(workspace => workspace.includes(workspaceName))
@@ -659,13 +659,13 @@ function suggestOpen(fragments) {
         const subCommand = fragments[3]?.toUpperCase() || '';
         const commit = fragments[4]?.toLowerCase() || '';
         Object.keys(repositoryData.tags)
-            .filter(tag => tag.includes(tag))
+            .filter(tagId => tagId.includes(tag))
             .sort((a, b) => {
                 return sortOnLastUsed(repositoryData.tags, a, b);
             })
-            .filter(tag => subCommand === "")
-            .map(tag => {
-                suggestions.push(createSuggestion(`${repositoryName} TAG ${tag}`, `Open the tag`));
+            .filter(tagId => subCommand === "")
+            .map(tagId => {
+                suggestions.push(createSuggestion(`${repositoryName} TAG ${tagId}`, `Open the tag`));
             });
         if (commit === '' && tag !== '')
             suggestions.push(createSuggestion(`${repositoryName} TAG ${tag} COMMIT`, `Open the commit history of the tag`));
@@ -719,6 +719,9 @@ function suggestOpen(fragments) {
             .filter(environmentName => repositoryData.environments[environmentName].environmentId !== undefined)
             .sort((a, b) => {
                 return sortOnLastUsed(repositoryData.environments, a, b);
+            })
+            .map(environmentName => {
+                suggestions.push(createSuggestion(`${repositoryName} DEPLOY ${environmentName}`, `Open the deployment environment`));
             });
     } else if (command === 'COMPARE') {
         const branchCompare = fragments[2] || '';
