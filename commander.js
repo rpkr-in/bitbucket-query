@@ -744,6 +744,12 @@ function suggestOpen(fragments) {
         return [];
     }
     if (bitbucketQueryData.workspaces[workspaceName].repositories[resolvedName] === undefined) {
+        Object.keys(bitbucketQueryData.aliases)
+            .filter(alias => alias.includes(repositoryName))
+            .sort()
+            .map(alias => {
+                suggestions.push(createSuggestion(`${alias}`, `Open the repository (alias for "${bitbucketQueryData.aliases[alias]}")`));
+            });
         Object.keys(bitbucketQueryData.workspaces[workspaceName].repositories)
             .filter(repository => repository.includes(repositoryName))
             .sort((a, b) => {
