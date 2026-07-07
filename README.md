@@ -32,6 +32,8 @@ BQL passively scrapes data from Bitbucket pages you visit — workspaces, reposi
 | `LIST` | Open repository list for the active workspace |
 | `LIST workspace-name` | Open repository list for a specific workspace |
 | `HELP` | Open this help/documentation page |
+| `SETTINGS` | Open the settings page (backup/restore, tab behaviour, cleanup) |
+| `CONFIG TAB NEW` / `CONFIG TAB SAME` | Set whether navigation opens in a new tab or the same tab by default |
 
 ### Repository Navigation
 
@@ -58,6 +60,20 @@ All repo commands use the active workspace. Format: `repo-name [sub-command]`
 | `repo-name COMPARE branch-a TO branch-b` | Compare two branches/tags |
 | `repo-name DIFF branch-name` | Diff branch against default branch |
 | `repo-name DIFF branch-a TO branch-b` | Diff two branches/tags |
+| `repo-name CLONE` / `repo-name CLONE SSH` / `repo-name CLONE HTTPS` | Copy the clone URL to the clipboard (defaults to HTTPS) |
+
+> **Tab behaviour override:** append `NEW` or `SAME` to any navigation query (e.g. `repo-name BRANCH main SAME`) to force a single query to open in a new or the same tab, overriding the configured default.
+
+### Aliases
+
+Assign a short alias to a long repository name. Aliases are resolved before a query is parsed, so an alias works anywhere a repository name does.
+
+| Command | Description |
+|---|---|
+| `ALIAS set fe my-very-long-frontend-repo-name` | `fe` now resolves to the full repository name |
+| `ALIAS remove fe` | Remove an alias |
+| `ALIAS list` | Show all aliases as a notification |
+| `fe BRANCH main` | Works like `my-very-long-frontend-repo-name BRANCH main` |
 
 ### Macros
 
@@ -98,6 +114,16 @@ All data is stored in Chrome's local extension storage and never leaves your bro
 
 ---
 
+## Settings Page
+
+Run `SETTINGS` in the omnibox (or open the extension's options page) to manage BQL from a UI:
+
+- **Backup & restore** — export the full local cache (workspaces, repositories, macros, aliases and settings) to `bql-backup.json`, or import it to restore on another device.
+- **Tab behaviour** — choose whether navigation opens in a new tab or the same tab, and pick the active workspace.
+- **Cleanup** — remove workspaces, individual repositories, aliases, or macros (and repos within a macro).
+
+---
+
 ## Upcoming Features
 
 - Open a specific source file in a repository
@@ -124,6 +150,11 @@ bitbucket-query/
 ├── manifest.json      Chrome extension manifest (Manifest V3)
 ├── commander.js       Service worker: query parsing, suggestions, URL generation, storage
 ├── solider.js         Content script: DOM scraping on Bitbucket pages
+├── offscreen.html     Offscreen document host used to copy clone URLs
+├── offscreen.js       Offscreen clipboard writer
+├── settings.html      Settings/options page (backup, tab behaviour, cleanup)
+├── settings.css       Styles for the settings page
+├── settings.js        Settings page logic
 ├── help.html          Help/documentation page (opens on install)
 ├── help.css           Styles for the help page
 ├── plan.md            Internal planning notes
@@ -161,6 +192,7 @@ bitbucket-query/
 | `storage` | Persist cached workspace/repo/branch data locally |
 | `notifications` | Notify user of actions (macro operations, errors, confirmations) |
 | `contextMenus` | Right-click "Add this repo to macro" on Bitbucket pages |
+| `offscreen` | Copy clone URLs to the clipboard from the background service worker |
 
 ---
 

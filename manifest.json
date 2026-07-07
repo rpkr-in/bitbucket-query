@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "Bitbucket Query Language",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "description": "A Chrome extension to developers to navigate through Bitbucket repositories using a query language.",
     "icons": {
         "16": "logo16.png",
@@ -15,6 +15,7 @@
     "omnibox": {
         "keyword": "open"
     },
+    "options_page": "settings.html",
     "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAqMfsP2PgG1ID4taLDsIZz81kA3zMgnBtoe3a356N020ZFEeWXts2uFppDkBvWuoAe6/rIeIZ0hU3kfzohOTg2JVq/O4I0GmbYHzO+E7yvuSveWoE7jio4tlhA6cjMItZ34vl/lOfypbz7VRe7EM4wZEn/G0NIma+krwscWNwipgMDJVktLa1I1bi/ienciWwHu1HqHiZzZNQLEYvHBRqf5VZy+YE1fUHHZtaRDHsmOo80dvYxGg0fuhuQPKplBj16beZrm73MTohpXfn22e2eSPwXYX3oZ6/du6GZqE+GJ300hUKf9OLDtd5etqBoDZDDtouUFyE43IVpl0egdBqMQIDAQAB",
     "content_scripts": [
         {
@@ -31,6 +32,7 @@
     "permissions": [
         "storage",
         "notifications",
-        "contextMenus"
+        "contextMenus",
+        "offscreen"
     ]
 }

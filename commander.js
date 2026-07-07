@@ -4,17 +4,21 @@ chrome.runtime.onInstalled.addListener(() => {
     chrome.tabs.create({url: 'help.html'});
 });
 
+const DEFAULT_TAB_BEHAVIOUR = 'new';
+
 var bitbucketQueryData = {
     active: null,
     workspaces: {},
     macro: {},
+    aliases: {},
+    config: {tabBehaviour: DEFAULT_TAB_BEHAVIOUR},
     isLoaded: false
 }
 
 loadFromLocalStorage();
 
 function loadFromLocalStorage() {
-    chrome.storage.local.get(["workspaces", "active", "macro"], (result) => {
+    chrome.storage.local.get(["workspaces", "active", "macro", "aliases", "config"], (result) => {
         if (result.workspaces === undefined) {
             saveToLocalStorage();
             console.log("No data found in local storage, so created a new one");
@@ -23,12 +27,30 @@ function loadFromLocalStorage() {
             if (bitbucketQueryData.macro === undefined) {
                 bitbucketQueryData.macro = {};
             }
+            if (bitbucketQueryData.aliases === undefined) {
+                bitbucketQueryData.aliases = {};
+            }
+            if (bitbucketQueryData.config === undefined) {
+                bitbucketQueryData.config = {tabBehaviour: DEFAULT_TAB_BEHAVIOUR};
+            }
+            if (bitbucketQueryData.config.tabBehaviour === undefined) {
+                bitbucketQueryData.config.tabBehaviour = DEFAULT_TAB_BEHAVIOUR;
+            }
             console.log("Data found & it is set to", bitbucketQueryData);
         }
         bitbucketQueryData.isLoaded = true;
     });
     refreshContextMenu();
 }
+
+/* Reload in-memory state when storage is changed elsewhere (e.g. settings page) */
+var isSavingLocally = false;
+chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName !== 'local' || isSavingLocally) {
+        return;
+    }
+    loadFromLocalStorage();
+});
 
 /* Context Menu Setup*/
 function refreshContextMenu() {
@@ -420,9 +442,35 @@ function accessedEnvironment(workspaceName, repositoryName, environmentName) {
 chrome.omnibox.onInputChanged.addListener(function (text, suggest) {
     console.log('✏️ onInputChanged: ' + text);
     const fragments = text.trim().split(' ').map(fragment => fragment.trim()).filter(fragment => fragment.length > 0);
-    console.log('fragments', fragments);
-    suggestionEngine(fragments, suggest);
+    const command = fragments[0]?.toUpperCase() || '';
+    const navigationCommands = ['LIST', 'MACRO'];
+    const isNavigation = navigationCommands.includes(command) || !isKnownCommand(command);
+    const {fragments: strippedFragments} = isNavigation ? extractTabOverride(fragments) : {fragments};
+    console.log('fragments', strippedFragments);
+    suggestionEngine(strippedFragments, suggest);
 });
+
+/*
+ * Tab behaviour override: an optional trailing NEW / SAME keyword forces how the
+ * navigation opens, regardless of the configured default. Returns the fragments
+ * without the keyword and the resolved override ('new' | 'same' | null).
+ */
+const KNOWN_COMMANDS = ['SET', 'LIST', 'HELP', 'SETTINGS', 'CONFIG', 'ALIAS', 'MACRO'];
+
+function isKnownCommand(command) {
+    return KNOWN_COMMANDS.includes(command);
+}
+
+function extractTabOverride(fragments) {
+    if (fragments.length < 2) {
+        return {fragments, override: null};
+    }
+    const last = fragments[fragments.length - 1].toUpperCase();
+    if (last === 'NEW' || last === 'SAME') {
+        return {fragments: fragments.slice(0, -1), override: last.toLowerCase()};
+    }
+    return {fragments, override: null};
+}
 
 function defaultSuggest() {
     return [
@@ -441,6 +489,18 @@ function defaultSuggest() {
             {
                 content: 'MACRO',
                 description: 'MACRO : Get to new tab for setting up macros'
+            },
+            {
+                content: 'ALIAS',
+                description: 'ALIAS : Manage short aliases for repositories (set / remove / list)'
+            },
+            {
+                content: 'CONFIG',
+                description: 'CONFIG TAB "NEW|SAME" : Set whether navigation opens in a new or the same tab'
+            },
+            {
+                content: 'SETTINGS',
+                description: 'SETTINGS : Open the settings page (backup, tab behaviour, cleanup)'
             },
             {
                 content: ' ',
@@ -469,6 +529,22 @@ function suggestionEngine(fragments, suggest) {
                 }
             ])
             break;
+        case 'SETTINGS':
+            suggest([
+                {
+                    content: 'SETTINGS',
+                    description: 'SETTINGS : Open the settings page (backup, tab behaviour, cleanup)'
+                }
+            ])
+            break;
+        case 'CONFIG':
+            suggestions = suggestConfig(fragments);
+            suggest(suggestions);
+            break;
+        case 'ALIAS':
+            suggestions = suggestAlias(fragments);
+            suggest(suggestions);
+            break;
         case 'MACRO':
             suggestions = suggestMacro(fragments);
             suggest(suggestions);
@@ -486,6 +562,64 @@ function suggestionEngine(fragments, suggest) {
             suggestions = suggestOpen(fragments);
             suggest(defaultSuggestionsFiltered.concat(suggestions));
     }
+}
+
+function suggestConfig(fragments) {
+    const setting = fragments[1]?.toUpperCase() || '';
+    if ('TAB'.includes(setting)) {
+        return [
+            createSuggestion('CONFIG TAB NEW', 'Open navigation in a new tab by default'),
+            createSuggestion('CONFIG TAB SAME', 'Open navigation in the same tab by default')
+        ];
+    }
+    const value = fragments[2]?.toUpperCase() || '';
+    return [
+        createSuggestion('CONFIG TAB NEW', 'Open navigation in a new tab by default'),
+        createSuggestion('CONFIG TAB SAME', 'Open navigation in the same tab by default')
+    ].filter(suggestion => suggestion.content.split(' ')[2].includes(value));
+}
+
+function suggestAlias(fragments) {
+    const subCommand = fragments[1]?.toUpperCase() || '';
+    const suggestions = [];
+    if (subCommand === 'SET') {
+        const alias = fragments[2]?.toLowerCase() || '';
+        const repositoryName = fragments[3] || '';
+        if (alias === '') {
+            suggestions.push(createSuggestion('ALIAS set', '{alias} {repo-name} Assign a short alias to a repository'));
+            return suggestions;
+        }
+        const workspaceName = bitbucketQueryData.active;
+        const repositories = bitbucketQueryData.workspaces[workspaceName]?.repositories || {};
+        Object.keys(repositories)
+            .filter(repository => repository.includes(repositoryName.toLowerCase()))
+            .sort((a, b) => sortOnLastUsed(repositories, a, b))
+            .map(repository => {
+                suggestions.push(createSuggestion(`ALIAS set ${alias} ${repository}`, `Alias "${alias}" for this repository`));
+            });
+        return suggestions;
+    }
+    if (subCommand === 'REMOVE') {
+        const alias = fragments[2]?.toLowerCase() || '';
+        Object.keys(bitbucketQueryData.aliases)
+            .filter(existing => existing.includes(alias))
+            .map(existing => {
+                suggestions.push(createSuggestion(`ALIAS remove ${existing}`, `Remove the alias for "${bitbucketQueryData.aliases[existing]}"`));
+            });
+        return suggestions;
+    }
+    ['set', 'remove', 'list']
+        .filter(action => action.includes(subCommand.toLowerCase()))
+        .map(action => {
+            if (action === 'set') {
+                suggestions.push(createSuggestion('ALIAS set', '{alias} {repo-name} Assign a short alias to a repository'));
+            } else if (action === 'remove') {
+                suggestions.push(createSuggestion('ALIAS remove', '{alias} Remove an alias'));
+            } else {
+                suggestions.push(createSuggestion('ALIAS list', 'Show all aliases as a notification'));
+            }
+        });
+    return suggestions;
 }
 
 function suggestSet(fragments) {
@@ -603,12 +737,13 @@ function suggestMacro(fragments) {
 
 function suggestOpen(fragments) {
     const repositoryName = fragments[0] || '';
+    const resolvedName = resolveAlias(repositoryName);
     const workspaceName = bitbucketQueryData.active;
     const suggestions = [];
     if (bitbucketQueryData.workspaces[workspaceName] === undefined) {
         return [];
     }
-    if (bitbucketQueryData.workspaces[workspaceName].repositories[repositoryName] === undefined) {
+    if (bitbucketQueryData.workspaces[workspaceName].repositories[resolvedName] === undefined) {
         Object.keys(bitbucketQueryData.workspaces[workspaceName].repositories)
             .filter(repository => repository.includes(repositoryName))
             .sort((a, b) => {
@@ -619,7 +754,7 @@ function suggestOpen(fragments) {
             });
         return suggestions;
     }
-    const repositoryData = bitbucketQueryData.workspaces[workspaceName].repositories[repositoryName];
+    const repositoryData = bitbucketQueryData.workspaces[workspaceName].repositories[resolvedName];
     const openRepoBranchSuggestion = createSuggestion(`${repositoryName} BRANCH`, `Open the branches of the repository`);
     const openRepoTagSuggestion = createSuggestion(`${repositoryName} TAG`, `Open the tags of the repository`);
     const openRepoCommitSuggestion = createSuggestion(`${repositoryName} COMMIT`, `Open the commit history of the repository`);
@@ -628,6 +763,7 @@ function suggestOpen(fragments) {
     const openRepoDeploySuggestion = createSuggestion(`${repositoryName} DEPLOY`, `Open the deployments of the repository`);
     const openRepoCompareSuggestion = createSuggestion(`${repositoryName} COMPARE`, `Compare branches or tags`);
     const openRepoDiffSuggestion = createSuggestion(`${repositoryName} DIFF`, `Diff branches or tags`);
+    const openRepoCloneSuggestion = createSuggestion(`${repositoryName} CLONE`, `Copy the clone URL to the clipboard`);
 
     const command = fragments[1]?.toUpperCase() || '';
     console.log(command)
@@ -784,6 +920,13 @@ function suggestOpen(fragments) {
             .map(branch => {
                 suggestions.push(createSuggestion(`${repositoryName} DIFF ${branchDiff} TO ${branch}`, `Diff branches or tags`));
             });
+    } else if (command === 'CLONE') {
+        const protocol = fragments[2]?.toUpperCase() || '';
+        [
+            createSuggestion(`${repositoryName} CLONE HTTPS`, `Copy the HTTPS clone URL to the clipboard`),
+            createSuggestion(`${repositoryName} CLONE SSH`, `Copy the SSH clone URL to the clipboard`)
+        ].filter(suggestion => suggestion.content.split(' ')[2].includes(protocol))
+            .map(suggestion => suggestions.push(suggestion));
     } else {
         const tempSuggestions = [openRepoBranchSuggestion,
             openRepoTagSuggestion,
@@ -792,7 +935,8 @@ function suggestOpen(fragments) {
             openRepoPipelineSuggestion,
             openRepoDeploySuggestion,
             openRepoCompareSuggestion,
-            openRepoDiffSuggestion];
+            openRepoDiffSuggestion,
+            openRepoCloneSuggestion];
 
         tempSuggestions.filter(suggestion => {
             const content = suggestion.content.split(' ');
@@ -829,27 +973,106 @@ function processInput(fragments) {
         return;
     }
     const command = fragments[0]?.toUpperCase();
+    // The trailing NEW / SAME override only applies to navigation commands, and would
+    // otherwise be mistaken for the value of "CONFIG TAB NEW|SAME".
+    const navigationCommands = ['LIST', 'MACRO'];
+    const isNavigation = navigationCommands.includes(command) || !isKnownCommand(command);
+    const {fragments: strippedFragments, override} = isNavigation
+        ? extractTabOverride(fragments)
+        : {fragments, override: null};
     try {
         switch (command) {
             case 'SET':
-                processSet(fragments);
+                processSet(strippedFragments);
                 break;
             case 'LIST':
-                processList(fragments);
+                processList(strippedFragments, override);
                 break;
             case 'HELP':
                 chrome.tabs.create({url: 'help.html'});
                 break;
+            case 'SETTINGS':
+                chrome.tabs.create({url: 'settings.html'});
+                break;
+            case 'CONFIG':
+                processConfig(strippedFragments);
+                break;
+            case 'ALIAS':
+                processAlias(strippedFragments);
+                break;
             case 'MACRO':
-                processMacro(fragments);
+                processMacro(strippedFragments, override);
                 break;
             default:
-                processOpen(fragments);
+                processOpen(strippedFragments, override);
         }
     } catch (e) {
         console.error('Error', e);
         notifyUser('Error', 'An error occurred while processing the command');
     }
+}
+
+function processConfig(fragments) {
+    const setting = fragments[1]?.toUpperCase() || '';
+    const value = fragments[2]?.toUpperCase() || '';
+    if (setting !== 'TAB') {
+        notifyUser('Tab behaviour', `Tabs currently open in the "${bitbucketQueryData.config.tabBehaviour}" tab. Use "CONFIG TAB NEW" or "CONFIG TAB SAME" to change it.`);
+        return;
+    }
+    if (value !== 'NEW' && value !== 'SAME') {
+        notifyUser('Invalid config', 'Please use "CONFIG TAB NEW" or "CONFIG TAB SAME"');
+        return;
+    }
+    bitbucketQueryData.config.tabBehaviour = value.toLowerCase();
+    saveToLocalStorage();
+    notifyUser('Config updated', `Navigation now opens in a ${value === 'NEW' ? 'new' : 'the same'} tab by default`);
+}
+
+function processAlias(fragments) {
+    const subCommand = fragments[1]?.toUpperCase() || '';
+    if (subCommand === 'LIST' || subCommand === '') {
+        const aliasKeys = Object.keys(bitbucketQueryData.aliases);
+        if (aliasKeys.length === 0) {
+            notifyUser('No aliases', 'No aliases found. Use "ALIAS set <alias> <repo>" to add one.');
+            return;
+        }
+        const message = aliasKeys.map(alias => `${alias} → ${bitbucketQueryData.aliases[alias]}`).join('\n');
+        notifyUser('Aliases', message);
+        return;
+    }
+    if (subCommand === 'SET') {
+        const alias = fragments[2]?.toLowerCase() || '';
+        const repositoryName = fragments[3]?.toLowerCase() || '';
+        if (alias === '' || repositoryName === '') {
+            notifyUser('Invalid alias', 'Please use "ALIAS set <alias> <repo-name>"');
+            return;
+        }
+        const regex = /^[a-z0-9-]+$/;
+        if (!regex.test(alias)) {
+            notifyUser('Invalid alias name', 'Only letters (a-z), numbers (0-9), and hyphens (-) are allowed.');
+            return;
+        }
+        bitbucketQueryData.aliases[alias] = repositoryName;
+        saveToLocalStorage();
+        notifyUser('Alias set', `"${alias}" now resolves to "${repositoryName}"`);
+        return;
+    }
+    if (subCommand === 'REMOVE') {
+        const alias = fragments[2]?.toLowerCase() || '';
+        if (bitbucketQueryData.aliases[alias] === undefined) {
+            notifyUser('No alias found', `No alias found with the name "${alias}"`);
+            return;
+        }
+        delete bitbucketQueryData.aliases[alias];
+        saveToLocalStorage();
+        notifyUser('Alias removed', `Alias "${alias}" removed`);
+        return;
+    }
+    notifyUser('Invalid alias command', 'Use "ALIAS set", "ALIAS remove" or "ALIAS list"');
+}
+
+function resolveAlias(repositoryName) {
+    return bitbucketQueryData.aliases[repositoryName] || repositoryName;
 }
 
 function processSet(fragments) {
@@ -870,33 +1093,39 @@ function processSet(fragments) {
     notifyUser('Set active workspace', `Set workspace "${workspaceName}" as active`);
 }
 
-function processList(fragments) {
+function processList(fragments, override) {
     const workspaceName = fragments[1]?.toLowerCase() || bitbucketQueryData.active;
     if (bitbucketQueryData.workspaces[workspaceName] === undefined) {
         notifyUser('No workspace found', `No workspace found with the name "${workspaceName}"`);
         return;
     }
     const url = `https://bitbucket.org/${workspaceName}/workspace/repositories/`;
-    openTab(url);
+    openTab(url, override);
 }
 
-function processOpen(fragments) {
-    const repositoryName = fragments[0]?.toLowerCase() || '';
+function processOpen(fragments, override) {
+    const repositoryName = resolveAlias(fragments[0]?.toLowerCase() || '');
     if (repositoryName === undefined || repositoryName === '') {
         notifyUser('No repository name', 'Please enter a repository name');
         return;
     }
     const workspaceName = bitbucketQueryData.active;
+
+    if (fragments[1]?.toUpperCase() === 'CLONE') {
+        copyCloneUrl(workspaceName, repositoryName, fragments[2]);
+        return;
+    }
+
     let url = `https://bitbucket.org/${workspaceName}/${repositoryName}/`;
 
     const urlSuffix = getSuffixPathForOpen(fragments);
     if (urlSuffix === null) {
         return;
     }
-    openTab(url + urlSuffix);
+    openTab(url + urlSuffix, override);
 }
 
-function processMacro(fragments) {
+function processMacro(fragments, override) {
     const macroName = fragments[1]?.toLowerCase() || '';
     if (macroName === '') {
         const macroKeys = Object.keys(bitbucketQueryData.macro);
@@ -977,7 +1206,7 @@ function processMacro(fragments) {
     const urlSuffix = getSuffixPathForOpen(fragments);
     repositories.map(repository => {
         const url = `https://bitbucket.org/${repository}/`;
-        openTab(url + urlSuffix);
+        openTab(url + urlSuffix, override);
     });
 }
 
@@ -1053,8 +1282,65 @@ function getSuffixPathForOpen(fragments) {
 }
 
 /* Tabs */
-function openTab(url) {
+function openTab(url, override) {
+    const behaviour = override || bitbucketQueryData.config?.tabBehaviour || DEFAULT_TAB_BEHAVIOUR;
+    if (behaviour === 'same') {
+        chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
+            if (tabs && tabs[0] && tabs[0].id !== undefined) {
+                chrome.tabs.update(tabs[0].id, {url: url});
+            } else {
+                chrome.tabs.create({url: url, active: true, index: 50});
+            }
+        });
+        return;
+    }
     chrome.tabs.create({url: url, active: true, index: 50});
+}
+
+/* Clone URL to clipboard */
+function copyCloneUrl(workspaceName, repositoryName, protocol) {
+    const type = (protocol || 'HTTPS').toUpperCase();
+    let url;
+    if (type === 'SSH') {
+        url = `git@bitbucket.org:${workspaceName}/${repositoryName}.git`;
+    } else if (type === 'HTTPS') {
+        url = `https://${workspaceName}@bitbucket.org/${workspaceName}/${repositoryName}.git`;
+    } else {
+        notifyUser('Invalid clone type', 'Please use "<repo> CLONE", "<repo> CLONE SSH" or "<repo> CLONE HTTPS"');
+        return;
+    }
+    copyToClipboard(url)
+        .then(() => notifyUser('Clone URL copied', url))
+        .catch((error) => {
+            console.error('Failed to copy clone URL', error);
+            notifyUser('Copy failed', 'Could not copy the clone URL to the clipboard');
+        });
+}
+
+const OFFSCREEN_DOCUMENT_PATH = 'offscreen.html';
+
+async function copyToClipboard(text) {
+    await setupOffscreenDocument();
+    await chrome.runtime.sendMessage({
+        target: 'offscreen',
+        type: 'copy-to-clipboard',
+        data: text
+    });
+}
+
+async function setupOffscreenDocument() {
+    const existingContexts = await chrome.runtime.getContexts({
+        contextTypes: ['OFFSCREEN_DOCUMENT'],
+        documentUrls: [chrome.runtime.getURL(OFFSCREEN_DOCUMENT_PATH)]
+    });
+    if (existingContexts.length > 0) {
+        return;
+    }
+    await chrome.offscreen.createDocument({
+        url: OFFSCREEN_DOCUMENT_PATH,
+        reasons: ['CLIPBOARD'],
+        justification: 'Write the repository clone URL to the clipboard'
+    });
 }
 
 /* Notifications */
@@ -1072,8 +1358,10 @@ function notifyUser(title, message, requireInteraction = false) {
 
 /* Local storage */
 function saveToLocalStorage() {
+    isSavingLocally = true;
     chrome.storage.local.set(bitbucketQueryData).then(() => {
         console.log(bitbucketQueryData, "Data is set to local storage");
+        isSavingLocally = false;
     });
     refreshContextMenu();
 }
