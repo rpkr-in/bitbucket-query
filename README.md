@@ -60,7 +60,6 @@ All repo commands use the active workspace. Format: `repo-name [sub-command]`
 | `repo-name COMPARE branch-a TO branch-b` | Compare two branches/tags |
 | `repo-name DIFF branch-name` | Diff branch against default branch |
 | `repo-name DIFF branch-a TO branch-b` | Diff two branches/tags |
-| `repo-name CLONE` / `repo-name CLONE SSH` / `repo-name CLONE HTTPS` | Copy the clone URL to the clipboard (defaults to HTTPS) |
 
 > **Tab behaviour override:** append `NEW` or `SAME` to any navigation query (e.g. `repo-name BRANCH main SAME`) to force a single query to open in a new or the same tab, overriding the configured default.
 
@@ -150,8 +149,6 @@ bitbucket-query/
 ├── manifest.json      Chrome extension manifest (Manifest V3)
 ├── commander.js       Service worker: query parsing, suggestions, URL generation, storage
 ├── solider.js         Content script: DOM scraping on Bitbucket pages
-├── offscreen.html     Offscreen document host used to copy clone URLs
-├── offscreen.js       Offscreen clipboard writer
 ├── settings.html      Settings/options page (backup, tab behaviour, cleanup)
 ├── settings.css       Styles for the settings page
 ├── settings.js        Settings page logic
@@ -192,7 +189,6 @@ bitbucket-query/
 | `storage` | Persist cached workspace/repo/branch data locally |
 | `notifications` | Notify user of actions (macro operations, errors, confirmations) |
 | `contextMenus` | Right-click "Add this repo to macro" on Bitbucket pages |
-| `offscreen` | Copy clone URLs to the clipboard from the background service worker |
 
 ---
 

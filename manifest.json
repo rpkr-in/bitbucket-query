@@ -32,7 +32,6 @@
     "permissions": [
         "storage",
         "notifications",
-        "contextMenus",
-        "offscreen"
+        "contextMenus"
     ]
 }

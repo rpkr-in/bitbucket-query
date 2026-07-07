@@ -769,7 +769,6 @@ function suggestOpen(fragments) {
     const openRepoDeploySuggestion = createSuggestion(`${repositoryName} DEPLOY`, `Open the deployments of the repository`);
     const openRepoCompareSuggestion = createSuggestion(`${repositoryName} COMPARE`, `Compare branches or tags`);
     const openRepoDiffSuggestion = createSuggestion(`${repositoryName} DIFF`, `Diff branches or tags`);
-    const openRepoCloneSuggestion = createSuggestion(`${repositoryName} CLONE`, `Copy the clone URL to the clipboard`);
 
     const command = fragments[1]?.toUpperCase() || '';
     console.log(command)
@@ -926,13 +925,6 @@ function suggestOpen(fragments) {
             .map(branch => {
                 suggestions.push(createSuggestion(`${repositoryName} DIFF ${branchDiff} TO ${branch}`, `Diff branches or tags`));
             });
-    } else if (command === 'CLONE') {
-        const protocol = fragments[2]?.toUpperCase() || '';
-        [
-            createSuggestion(`${repositoryName} CLONE HTTPS`, `Copy the HTTPS clone URL to the clipboard`),
-            createSuggestion(`${repositoryName} CLONE SSH`, `Copy the SSH clone URL to the clipboard`)
-        ].filter(suggestion => suggestion.content.split(' ')[2].includes(protocol))
-            .map(suggestion => suggestions.push(suggestion));
     } else {
         const tempSuggestions = [openRepoBranchSuggestion,
             openRepoTagSuggestion,
@@ -941,8 +933,7 @@ function suggestOpen(fragments) {
             openRepoPipelineSuggestion,
             openRepoDeploySuggestion,
             openRepoCompareSuggestion,
-            openRepoDiffSuggestion,
-            openRepoCloneSuggestion];
+            openRepoDiffSuggestion];
 
         tempSuggestions.filter(suggestion => {
             const content = suggestion.content.split(' ');
@@ -1116,11 +1107,6 @@ function processOpen(fragments, override) {
         return;
     }
     const workspaceName = bitbucketQueryData.active;
-
-    if (fragments[1]?.toUpperCase() === 'CLONE') {
-        copyCloneUrl(workspaceName, repositoryName, fragments[2]);
-        return;
-    }
 
     let url = `https://bitbucket.org/${workspaceName}/${repositoryName}/`;
 
@@ -1301,75 +1287,6 @@ function openTab(url, override) {
         return;
     }
     chrome.tabs.create({url: url, active: true, index: 50});
-}
-
-/* Clone URL to clipboard */
-function copyCloneUrl(workspaceName, repositoryName, protocol) {
-    const type = (protocol || 'HTTPS').toUpperCase();
-    let url;
-    if (type === 'SSH') {
-        url = `git@bitbucket.org:${workspaceName}/${repositoryName}.git`;
-    } else if (type === 'HTTPS') {
-        url = `https://${workspaceName}@bitbucket.org/${workspaceName}/${repositoryName}.git`;
-    } else {
-        notifyUser('Invalid clone type', 'Please use "<repo> CLONE", "<repo> CLONE SSH" or "<repo> CLONE HTTPS"');
-        return;
-    }
-    copyToClipboard(url)
-        .then(() => notifyUser('Clone URL copied', url))
-        .catch((error) => {
-            console.error('Failed to copy clone URL', error);
-            notifyUser('Copy failed', error?.message || 'Could not copy the clone URL to the clipboard');
-        });
-}
-
-const OFFSCREEN_DOCUMENT_PATH = 'offscreen.html';
-let creatingOffscreenDocument = null;
-
-async function copyToClipboard(text) {
-    await setupOffscreenDocument();
-    await chrome.runtime.sendMessage({
-        target: 'offscreen',
-        type: 'copy-to-clipboard',
-        data: text
-    });
-}
-
-async function hasOffscreenDocument() {
-    if (chrome.runtime.getContexts) {
-        const existingContexts = await chrome.runtime.getContexts({
-            contextTypes: ['OFFSCREEN_DOCUMENT'],
-            documentUrls: [chrome.runtime.getURL(OFFSCREEN_DOCUMENT_PATH)]
-        });
-        return existingContexts.length > 0;
-    }
-    const matchedClients = await self.clients.matchAll();
-    const offscreenUrl = chrome.runtime.getURL(OFFSCREEN_DOCUMENT_PATH);
-    return matchedClients.some(client => client.url === offscreenUrl);
-}
-
-async function setupOffscreenDocument() {
-    if (!chrome.offscreen) {
-        throw new Error('Clipboard support unavailable. Reload the extension from chrome://extensions to enable it.');
-    }
-    if (await hasOffscreenDocument()) {
-        return;
-    }
-    // Avoid a race when multiple copy requests arrive before the document exists.
-    if (creatingOffscreenDocument) {
-        await creatingOffscreenDocument;
-        return;
-    }
-    creatingOffscreenDocument = chrome.offscreen.createDocument({
-        url: OFFSCREEN_DOCUMENT_PATH,
-        reasons: ['CLIPBOARD'],
-        justification: 'Write the repository clone URL to the clipboard'
-    });
-    try {
-        await creatingOffscreenDocument;
-    } finally {
-        creatingOffscreenDocument = null;
-    }
 }
 
 /* Notifications */
