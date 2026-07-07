@@ -1319,11 +1319,12 @@ function copyCloneUrl(workspaceName, repositoryName, protocol) {
         .then(() => notifyUser('Clone URL copied', url))
         .catch((error) => {
             console.error('Failed to copy clone URL', error);
-            notifyUser('Copy failed', 'Could not copy the clone URL to the clipboard');
+            notifyUser('Copy failed', error?.message || 'Could not copy the clone URL to the clipboard');
         });
 }
 
 const OFFSCREEN_DOCUMENT_PATH = 'offscreen.html';
+let creatingOffscreenDocument = null;
 
 async function copyToClipboard(text) {
     await setupOffscreenDocument();
@@ -1334,19 +1335,41 @@ async function copyToClipboard(text) {
     });
 }
 
+async function hasOffscreenDocument() {
+    if (chrome.runtime.getContexts) {
+        const existingContexts = await chrome.runtime.getContexts({
+            contextTypes: ['OFFSCREEN_DOCUMENT'],
+            documentUrls: [chrome.runtime.getURL(OFFSCREEN_DOCUMENT_PATH)]
+        });
+        return existingContexts.length > 0;
+    }
+    const matchedClients = await self.clients.matchAll();
+    const offscreenUrl = chrome.runtime.getURL(OFFSCREEN_DOCUMENT_PATH);
+    return matchedClients.some(client => client.url === offscreenUrl);
+}
+
 async function setupOffscreenDocument() {
-    const existingContexts = await chrome.runtime.getContexts({
-        contextTypes: ['OFFSCREEN_DOCUMENT'],
-        documentUrls: [chrome.runtime.getURL(OFFSCREEN_DOCUMENT_PATH)]
-    });
-    if (existingContexts.length > 0) {
+    if (!chrome.offscreen) {
+        throw new Error('Clipboard support unavailable. Reload the extension from chrome://extensions to enable it.');
+    }
+    if (await hasOffscreenDocument()) {
         return;
     }
-    await chrome.offscreen.createDocument({
+    // Avoid a race when multiple copy requests arrive before the document exists.
+    if (creatingOffscreenDocument) {
+        await creatingOffscreenDocument;
+        return;
+    }
+    creatingOffscreenDocument = chrome.offscreen.createDocument({
         url: OFFSCREEN_DOCUMENT_PATH,
         reasons: ['CLIPBOARD'],
         justification: 'Write the repository clone URL to the clipboard'
     });
+    try {
+        await creatingOffscreenDocument;
+    } finally {
+        creatingOffscreenDocument = null;
+    }
 }
 
 /* Notifications */
