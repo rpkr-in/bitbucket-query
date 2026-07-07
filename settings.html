@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Bitbucket Query Language | Settings</title>
+    <link rel="stylesheet" href="help.css"/>
+    <style>
+        .settings-section { margin: 24px 0; }
+        .settings-section p { margin: 8px 0 16px; color: #555; }
+        input[type="file"] { display: block; margin-bottom: 12px; }
+        button { padding: 8px 20px; cursor: pointer; border: none; border-radius: 4px; background: #0052cc; color: #fff; font-size: 14px; }
+        button:disabled { background: #999; cursor: not-allowed; }
+        #importStatus { margin-top: 12px; font-weight: bold; }
+        .success { color: green; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+<header>
+    <h1>Bitbucket Query Language | Settings</h1>
+    <h4>Manage your BQL data. Use the omnibox commands <code>EXPORT</code> and <code>IMPORT</code> to back up and restore.</h4>
+</header>
+
+<div class="settings-section">
+    <h2>Import Data</h2>
+    <p>Restore your BQL data (workspaces, repos, macros, aliases, config) from a previously exported <code>bql-backup.json</code> file. This will overwrite your current data.</p>
+    <input type="file" id="importFile" accept=".json"/>
+    <button id="importBtn" disabled>Import</button>
+    <p id="importStatus"></p>
+</div>
+
+<br/>
+<b>To export your data, type <code>open EXPORT</code> in the address bar.</b>
+<br/><br/>
+
+<footer>
+    &copy; 2024 Bitbucket Query Language | Built with ❤️ by <a href="https://rpkr.in/">RPKR</a>
+</footer>
+
+<script src="settings.js"></script>
+</body>
+</html>
