@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Bitbucket Query Language | Settings</title>
+    <link rel="stylesheet" href="settings.css"/>
+</head>
+<body>
+<header>
+    <h1>Bitbucket Query Language | Settings</h1>
+    <p>Manage how BQL behaves, back up your cached data, and clean up workspaces, repositories,
+        aliases and macros. Need the command reference? Open the <a href="help.html">help page</a>.</p>
+</header>
+
+<section id="general-section">
+    <h2>General</h2>
+    <div class="field">
+        <span class="field-label">Open navigation in</span>
+        <label><input type="radio" name="tab-behaviour" value="new"/> a new tab</label>
+        <label><input type="radio" name="tab-behaviour" value="same"/> the same tab</label>
+        <p class="hint">Override per query by appending <code>NEW</code> or <code>SAME</code>, e.g.
+            <code>open repo BRANCH main SAME</code>.</p>
+    </div>
+    <div class="field">
+        <span class="field-label">Active workspace</span>
+        <select id="active-workspace"></select>
+    </div>
+</section>
+
+<section id="backup-section">
+    <h2>Backup &amp; Restore</h2>
+    <p class="hint">Export your full local cache (workspaces, repositories, macros, aliases and
+        settings) to a JSON file, or restore it on another device.</p>
+    <div class="actions">
+        <button id="export-btn" type="button">Export backup (bql-backup.json)</button>
+        <button id="import-btn" type="button">Import backup&hellip;</button>
+        <input id="import-input" type="file" accept="application/json,.json" hidden/>
+    </div>
+</section>
+
+<section id="aliases-section">
+    <h2>Aliases</h2>
+    <p class="hint">Short names that resolve to a full repository name before a query runs.</p>
+    <form id="alias-form" class="inline-form">
+        <input id="alias-name" type="text" placeholder="alias (e.g. fe)" autocomplete="off"/>
+        <input id="alias-repo" type="text" placeholder="repository name" autocomplete="off"/>
+        <button type="submit">Add alias</button>
+    </form>
+    <table id="aliases-table">
+        <thead>
+        <tr>
+            <th>Alias</th>
+            <th>Repository</th>
+            <th class="actions-col">Actions</th>
+        </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+    <p class="empty" id="aliases-empty">No aliases yet.</p>
+</section>
+
+<section id="macros-section">
+    <h2>Macros</h2>
+    <p class="hint">Groups of repositories a single query can run across.</p>
+    <div id="macros-container"></div>
+    <p class="empty" id="macros-empty">No macros yet.</p>
+</section>
+
+<section id="workspaces-section">
+    <h2>Workspaces &amp; Repositories</h2>
+    <p class="hint">Remove cached workspaces or individual repositories you no longer need.</p>
+    <div id="workspaces-container"></div>
+    <p class="empty" id="workspaces-empty">No cached workspaces yet.</p>
+</section>
+
+<footer>
+    &copy; 2024 Bitbucket Query Language | Built with &#10084; by <a href="https://rpkr.in/">RPKR</a>
+</footer>
+
+<script src="settings.js"></script>
+</body>
+</html>
