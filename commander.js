@@ -1276,17 +1276,29 @@ function getSuffixPathForOpen(fragments) {
 /* Tabs */
 function openTab(url, override) {
     const behaviour = override || bitbucketQueryData.config?.tabBehaviour || DEFAULT_TAB_BEHAVIOUR;
-    if (behaviour === 'same') {
-        chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
-            if (tabs && tabs[0] && tabs[0].id !== undefined) {
-                chrome.tabs.update(tabs[0].id, {url: url});
-            } else {
-                chrome.tabs.create({url: url, active: true, index: 50});
+
+    chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
+        var currentTab = null;
+        var isChromePage = false;
+        if(tabs && tabs[0]) {
+            currentTab = tabs[0];
+            if(currentTab.url && currentTab.url.startsWith("chrome://")) {
+                isChromePage = true;
             }
-        });
-        return;
-    }
-    chrome.tabs.create({url: url, active: true, index: 50});
+        } else {
+            return;
+        }
+        if (behaviour === 'same' || isChromePage) {
+                if (currentTab.id !== undefined) {
+                    chrome.tabs.update(currentTab.id, {url: url});
+                } else {
+                    chrome.tabs.create({url: url, active: true, index: 50});
+                }
+        } else {
+            chrome.tabs.create({url: url, active: true, index: 50});
+        }
+    });
+
 }
 
 /* Notifications */
