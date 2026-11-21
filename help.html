@@ -162,8 +162,50 @@
             <td>Remove a repository from the macro</td>
             <td>-</td>
         </tr>
+        <tr>
+            <td>ALIAS set <code>alias</code> <code>repository-name</code></td>
+            <td>Assign a short alias that resolves to a repository name</td>
+            <td>-</td>
+        </tr>
+        <tr>
+            <td>ALIAS remove <code>alias</code></td>
+            <td>Remove an alias</td>
+            <td>-</td>
+        </tr>
+        <tr>
+            <td>ALIAS list</td>
+            <td>Show all aliases as a notification</td>
+            <td>-</td>
+        </tr>
+        <tr>
+            <td>CONFIG TAB <code>NEW</code> / CONFIG TAB <code>SAME</code></td>
+            <td>Set whether navigation opens in a new tab or the same tab by default</td>
+            <td>-</td>
+        </tr>
+        <tr>
+            <td><code>any navigation query</code> <code>NEW</code> / <code>SAME</code></td>
+            <td>Append to force a single query to open in a new / the same tab</td>
+            <td>-</td>
+        </tr>
+        <tr>
+            <td>SETTINGS</td>
+            <td>Open the settings page (backup/restore, tab behaviour, cleanup)</td>
+            <td>-</td>
+        </tr>
     </tbody>
 </table>
+
+<h2>Aliases</h2>
+<h4>Aliases let you map a short name to a long repository name. Once <code>ALIAS set fe my-very-long-frontend-repo-name</code>
+    is run, <code>open fe BRANCH main</code> works exactly like <code>open my-very-long-frontend-repo-name BRANCH main</code>.</h4>
+
+<h2>Tab Behaviour</h2>
+<h4>By default BQL opens navigation in a new tab. Change the default with <code>CONFIG TAB SAME</code> (or back with
+    <code>CONFIG TAB NEW</code>), and override any single query by appending <code>NEW</code> or <code>SAME</code> at the end.</h4>
+
+<h2>Settings Page</h2>
+<h4>Run <code>SETTINGS</code> (or open the extension's options) for a UI to export/import a JSON backup of your cached data,
+    change the default tab behaviour and active workspace, and remove workspaces, repositories, aliases or macros.</h4>
 
 <br/>
 <h2>📰Upcoming Features</h2>
